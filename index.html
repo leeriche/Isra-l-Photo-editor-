@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Israël Photo Pro Ultime</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f4f4f4; text-align:center; }
+header { background:#1a1a1a; color:white; padding:15px; }
+header h1 { margin:0; font-size:1.5em; }
+#controls { margin:15px; display:flex; flex-direction:column; gap:10px; align-items:center; }
+input[type=range], input[type=text] { width:80%; padding:5px; }
+canvas { max-width:95%; border:1px solid #ccc; margin-top:10px; border-radius:8px; touch-action: none; }
+button { padding:10px 15px; margin-top:5px; border:none; border-radius:5px; background:#4CAF50; color:white; cursor:pointer; }
+.filters button { margin:2px; }
+.stickers img { width:50px; margin:2px; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Israël Photo Pro Ultime</h1>
+</header>
+
+<input type="file" id="upload" accept="image/*">
+<div id="controls" style="display:none;">
+
+  <!-- Sliders -->
+  <label>Luminosité <span id="brightnessVal">100</span>%</label>
+  <input type="range" id="brightness" min="0" max="200" value="100">
+
+  <label>Contraste <span id="contrastVal">100</span>%</label>
+  <input type="range" id="contrast" min="0" max="200" value="100">
+
+  <label>Saturation <span id="saturationVal">100</span>%</label>
+  <input type="range" id="saturation" min="0" max="200" value="100">
+
+  <!-- Filtres prédéfinis -->
+  <div class="filters">
+    <button onclick="applyPreset('none')">Original</button>
+    <button onclick="applyPreset('grayscale')">Noir & Blanc</button>
+    <button onclick="applyPreset('sepia')">Sépia</button>
+    <button onclick="applyPreset('vintage')">Vintage</button>
+  </div>
+
+  <!-- Texte sur image -->
+  <input type="text" id="textOverlay" placeholder="Ajouter un texte">
+  <button onclick="addText()">Ajouter Texte</button>
+
+  <!-- Stickers -->
+  <div class="stickers">
+    <img src="https://i.postimg.cc/6p8L2bFb/IMG-20250815-170131.jpg" onclick="addSticker(this.src)">
+    <img src="https://i.postimg.cc/BvMKmTWP/sddefault.jpg" onclick="addSticker(this.src)">
+  </div>
+
+  <button onclick="downloadImage()">Télécharger l'image</button>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const upload = document.getElementById('upload');
+const controls = document.getElementById('controls');
+
+let img = new Image();
+let textItems = [];
+let stickerItems = [];
+let selectedItem = null;
+let offsetX = 0, offsetY = 0;
+let lastDist = 0;
+
+upload.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = event => { img.src = event.target.result; };
+  reader.readAsDataURL(file);
+});
+
+img.onload = () => {
+  canvas.width = img.width>800?800:img.width;
+  canvas.height = img.height*(canvas.width/img.width);
+  drawImage();
+  controls.style.display='flex';
+};
+
+// Sliders
+const brightness = document.getElementById('brightness');
+const contrast = document.getElementById('contrast');
+const saturation = document.getElementById('saturation');
+
+brightness.addEventListener('input', drawImage);
+contrast.addEventListener('input', drawImage);
+saturation.addEventListener('input', drawImage);
+
+function drawImage(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.filter = `brightness(${brightness.value}%) contrast(${contrast.value}%) saturate(${saturation.value}%)`;
+  ctx.drawImage(img,0,0,canvas.width,canvas.height);
+
+  textItems.forEach(item => {
+    ctx.save();
+    ctx.translate(item.x,item.y);
+    ctx.rotate(item.angle);
+    ctx.font = "30px Arial";
+    ctx.fillStyle="white";
+    ctx.strokeStyle="black";
+    ctx.lineWidth=2;
+    ctx.strokeText(item.text,0,0);
+    ctx.fillText(item.text,0,0);
+    ctx.restore();
+  });
+
+  stickerItems.forEach(item=>{
+    ctx.save();
+    ctx.translate(item.x,item.y);
+    ctx.rotate(item.angle);
+    ctx.drawImage(item.img,-item.width/2,-item.height/2,item.width,item.height);
+    ctx.restore();
+  });
+
+  document.getElementById('brightnessVal').innerText = brightness.value;
+  document.getElementById('contrastVal').innerText = contrast.value;
+  document.getElementById('saturationVal').innerText = saturation.value;
+}
+
+// Filtres
+function applyPreset(preset){
+  switch(preset){
+    case 'grayscale': ctx.filter='grayscale(100%)'; break;
+    case 'sepia': ctx.filter='sepia(100%)'; break;
+    case 'vintage': ctx.filter='sepia(50%) contrast(120%) brightness(90%)'; break;
+    default: drawImage(); return;
+  }
+  drawImage();
+}
+
+// Ajouter texte
+function addText(){
+  const txt=document.getElementById('textOverlay').value;
+  if(!txt) return;
+  textItems.push({text:txt,x:canvas.width/2,y:canvas.height/2,angle:0,scale:1});
+  drawImage();
+}
+
+// Ajouter stickers
+function addSticker(src){
+  const imgS=new Image();
+  imgS.src=src;
+  imgS.onload=()=>{
+    stickerItems.push({img:imgS,x:canvas.width/2,y:canvas.height/2,width:100,height:100,angle:0,scale:1});
+    drawImage();
+  }
+}
+
+// Télécharger
+function downloadImage(){
+  const link=document.createElement('a');
+  link.download='photo_pro_ultime.png';
+  link.href=canvas.toDataURL('image/png');
+  link.click();
+}
+
+// Interaction tactile
+canvas.addEventListener('pointerdown', e=>{
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  selectedItem = [...textItems,...stickerItems].find(item=>{
+    if(item.text){
+      ctx.font="30px Arial";
+      const width = ctx.measureText(item.text).width;
+      const height = 30;
+      return x>=item.x && x<=item.x+width && y>=item.y-height && y<=item.y;
+    } else {
+      return x>=item.x-item.width/2 && x<=item.x+item.width/2 &&
+             y>=item.y-item.height/2 && y<=item.y+item.height/2;
+    }
+  });
+
+  if(selectedItem){
+    selectedItem.startX=x;
+    selectedItem.startY=y;
+  }
+});
+
+canvas.addEventListener('pointermove', e=>{
+  if(!selectedItem) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  if(e.pointerType==='touch' && e.isPrimary===false) return; // multitouch future
+  selectedItem.x += x - selectedItem.startX;
+  selectedItem.y += y - selectedItem.startY;
+  selectedItem.startX=x;
+  selectedItem.startY=y;
+  drawImage();
+});
+
+canvas.addEventListener('pointerup', ()=>{ selectedItem=null; });
+canvas.addEventListener('pointerout', ()=>{ selectedItem=null; });
+
+// Multi-touch pour redimensionner / rotation futur
+// Possibilité d'étendre avec touch events pour scale/rotate
+</script>
+
+</body>
+</html>
